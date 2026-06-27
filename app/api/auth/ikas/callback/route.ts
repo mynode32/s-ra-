@@ -10,9 +10,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Missing code or state parameter' }, { status: 400 });
   }
 
-  const clientId = process.env.IKAS_CLIENT_ID;
-  const clientSecret = process.env.IKAS_CLIENT_SECRET;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/ikas/callback`;
+  const clientId = (process.env.IKAS_CLIENT_ID || '').trim();
+  const clientSecret = (process.env.IKAS_CLIENT_SECRET || '').trim();
+  const redirectUri = `${(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').trim()}/api/auth/ikas/callback`;
 
   // Code'u Access Token'a çevir
   const tokenUrl = `https://${storeName}.myikas.com/api/admin/oauth/token`;

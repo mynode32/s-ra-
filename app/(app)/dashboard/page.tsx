@@ -12,11 +12,11 @@ import {
   funnel,
   growthCurve,
   hero,
-  leaderboard,
   rewardTiers,
-  signups,
   trend,
-  viralStats,
+  leaderboard as demoLeaderboard,
+  signups as demoSignups,
+  viralStats as demoViralStats,
 } from "@/lib/demo/data";
 import { formatNumber } from "@/lib/utils";
 
@@ -97,8 +97,47 @@ const sourceTones: Record<string, string> = {
 
 export default function SiraDashboard() {
   const { lang, t } = useLang();
-  const count = useCountUp(hero.count);
-  const pct = Math.round((hero.count / hero.goal) * 100);
+  
+  // Gerçek Veri Durumu
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalSignups: 0,
+    referredSignups: 0,
+    refSharePct: 0,
+    kFactor: "0.0",
+    pendingSignups: 0
+  });
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [signups, setSignups] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchRealData = async () => {
+      try {
+        const store_id = typeof window !== 'undefined' 
+          ? new URLSearchParams(window.location.search).get('store_id') 
+          : null;
+          
+        if (!store_id) return;
+
+        const res = await fetch(`/api/dashboard?store_id=${store_id}`);
+        const data = await res.json();
+        if (data.success) {
+          setStats(data.stats);
+          setLeaderboard(data.leaderboard);
+          setSignups(data.recentSignups);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRealData();
+  }, []);
+
+  // Animasyonlu sayacın hedefi artık gerçek veri
+  const count = useCountUp(stats.totalSignups || 0);
+  const pct = Math.round(((stats.totalSignups || 0) / hero.goal) * 100);
   const [copied, setCopied] = useState(false);
 
   const m = {
@@ -148,8 +187,8 @@ export default function SiraDashboard() {
     },
   }[lang];
 
-  const refShare = Math.round((viralStats.invitesAccepted / hero.count) * 100);
-  const pendingCount = signups.filter((s) => s.status === "pending").length;
+  const refShare = stats.refSharePct;
+  const pendingCount = stats.pendingSignups;
   const breakdownTotal = breakdown.reduce((acc, b) => acc + b.value, 0);
 
   const shareLink = "sira.so/r/alex";
@@ -189,7 +228,7 @@ export default function SiraDashboard() {
             <p className="mt-1 font-display text-6xl font-bold leading-none tnum text-primary text-glow lg:text-7xl">{nf(count)}</p>
             <div className="mt-4 max-w-xs">
               <div className="flex items-center justify-between text-[11px] text-sidebar-muted tnum">
-                <span>{nf(hero.count)}</span><span>{nf(hero.goal)}</span>
+                <span>{nf(stats.totalSignups)}</span><span>{nf(hero.goal)}</span>
               </div>
               <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
@@ -199,7 +238,7 @@ export default function SiraDashboard() {
             <div className="mt-6 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-white/[0.05] p-4 ring-1 ring-white/10">
                 <p className="flex items-center gap-1.5 label-mono text-sidebar-muted"><Zap className="h-3 w-3 text-primary" /> {m.viral}</p>
-                <p className="mt-1.5 font-display text-3xl font-bold tnum text-primary">{viralStats.coefficient}×</p>
+                <p className="mt-1.5 font-display text-3xl font-bold tnum text-primary">{stats.kFactor}×</p>
                 <p className="mt-0.5 text-[11px] text-sidebar-foreground/60">{m.viralSub}</p>
               </div>
               <div className="rounded-2xl bg-white/[0.05] p-4 ring-1 ring-white/10">
@@ -271,9 +310,10 @@ export default function SiraDashboard() {
             <Link href="/referrals" className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground">{m.all} <ArrowUpRight className="h-3.5 w-3.5" /></Link>
           </div>
           <ol className="space-y-1.5">
+            {leaderboard.length === 0 && <p className="text-sm text-muted-foreground mt-4">Henüz referans yapan kimse yok.</p>}
             {leaderboard.slice(0, 6).map((r) => {
               const top = r.rank <= 3;
-              const barMax = leaderboard[0].referrals;
+              const barMax = leaderboard[0]?.referrals || 1;
               return (
                 <li key={r.id} className="group flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-muted/50">
                   <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-sm font-bold tnum ${top ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
@@ -386,11 +426,12 @@ export default function SiraDashboard() {
             <Link href="/waitlist" className="inline-flex items-center gap-1 text-sm text-muted-foreground transition hover:text-foreground">{m.all} <ArrowUpRight className="h-3.5 w-3.5" /></Link>
           </div>
           <ul className="space-y-1">
+            {signups.length === 0 && <p className="text-sm text-muted-foreground mt-4">Henüz kayıt yok.</p>}
             {signups.slice(0, 10).map((s) => {
-              const pending = s.status === "pending";
+              const pending = s.status === "pending" || s.status === "unconfirmed";
               return (
                 <li key={s.id} className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted/50">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-xs font-bold">{s.person.split(" ").map((p) => p[0]).join("").slice(0, 2)}</span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-xs font-bold">{s.person?.split(" ").map((p: string) => p[0]).join("").slice(0, 2) || "?"}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{s.person}
                       {s.status === "rewarded" && <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-bold text-primary"><Gift className="h-2.5 w-2.5" /></span>}

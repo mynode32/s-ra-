@@ -313,17 +313,14 @@ function ProductPreview({ c }: { c: (typeof content)["en"] }) {
 function InlineDemo({ c }: { c: (typeof content)["en"] }) {
   const [email, setEmail] = useState("");
   const [joined, setJoined] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [refCode, setRefCode] = useState("");
   const [bumps, setBumps] = useState(0);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | false>(false);
   const [copied, setCopied] = useState(false);
 
-  // Base position drops as the user "refers" people.
-  const basePos = 412;
-  const position = Math.max(1, basePos - bumps * 17);
-  const refCode = useMemo(() => {
-    const seed = email.split("@")[0]?.replace(/[^a-z0-9]/gi, "").slice(0, 6) || "you";
-    return `sira.so/r/${seed.toLowerCase() || "you"}`;
-  }, [email]);
+  const STORE_ID = "eb2b8b94-32d9-4865-80f4-43130486a685"; // Gerçek Test Mağazası Kimliği
 
   const board = useMemo(() => {
     const you = { name: c.you, ref: bumps, you: true };
@@ -336,15 +333,57 @@ function InlineDemo({ c }: { c: (typeof content)["en"] }) {
     return [...rest, you].sort((a, b) => b.ref - a.ref).slice(0, 5);
   }, [bumps, c.you]);
 
-  const submit = () => {
+  const submit = async () => {
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    if (!ok) { setError(true); return; }
+    if (!ok) { setError(c.tryInvalid); return; }
+    
+    setLoading(true);
     setError(false);
-    setJoined(true);
+    
+    try {
+      // 1. Gerçek API'ye istek at
+      const res = await fetch('/api/waitlist/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, store_id: STORE_ID })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Bir hata oluştu');
+      }
+
+      setPosition(data.position);
+      setRefCode(data.referral_code);
+      setJoined(true);
+      
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const simulateReferral = async () => {
+    setLoading(true);
+    try {
+      // 2. Senin bağlantın üzerinden rastgele biri kayıt olmuş gibi simüle et
+      const randomEmail = `friend_${Math.random().toString(36).slice(2, 6)}@test.com`;
+      await fetch('/api/waitlist/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: randomEmail, store_id: STORE_ID, ref_code: refCode })
+      });
+      setBumps(b => b + 1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const reset = () => { setEmail(""); setJoined(false); setBumps(0); setError(false); setCopied(false); };
   const copy = () => {
-    navigator.clipboard?.writeText(`https://${refCode}`).catch(() => {});
+    navigator.clipboard?.writeText(`https://sira.so/r/${refCode}`).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
@@ -377,11 +416,11 @@ function InlineDemo({ c }: { c: (typeof content)["en"] }) {
                       placeholder={c.tryPlaceholder}
                       className="flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm text-sidebar-foreground placeholder:text-sidebar-muted outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/25"
                     />
-                    <button onClick={submit} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-3 text-[13px] font-bold text-primary-foreground transition hover:opacity-90">
-                      {c.tryJoin} <ArrowRight className="h-4 w-4" />
+                    <button onClick={submit} disabled={loading} className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-primary px-5 py-3 text-[13px] font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50">
+                      {loading ? 'Bekle...' : c.tryJoin} <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
-                  {error && <p className="mt-2 text-[12px] font-semibold text-destructive">{c.tryInvalid}</p>}
+                  {error && <p className="mt-2 text-[12px] font-semibold text-destructive">{error}</p>}
                 </>
               ) : (
                 <>
@@ -392,7 +431,7 @@ function InlineDemo({ c }: { c: (typeof content)["en"] }) {
                   <div className="mt-6">
                     <p className="label-mono text-sidebar-muted">{c.tryShareLabel}</p>
                     <div className="mt-1.5 flex items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2.5">
-                      <span className="flex-1 truncate font-mono text-[13px] text-primary">{refCode}</span>
+                      <span className="flex-1 truncate font-mono text-[13px] text-primary">sira.so/r/{refCode}</span>
                       <button onClick={copy} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary/15 px-3 py-1.5 text-[12px] font-bold text-primary ring-1 ring-primary/30 transition hover:bg-primary/25">
                         {copied ? <><CheckCheck className="h-3.5 w-3.5" /> {c.tryCopied}</> : <><Copy className="h-3.5 w-3.5" /> {c.tryCopy}</>}
                       </button>
@@ -400,8 +439,8 @@ function InlineDemo({ c }: { c: (typeof content)["en"] }) {
                     <p className="mt-2 text-[12px] text-sidebar-foreground/60">{c.tryBumpHint}</p>
                   </div>
                   <div className="mt-6 flex flex-wrap items-center gap-2.5">
-                    <button onClick={() => setBumps((b) => b + 1)} className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground transition hover:opacity-90">
-                      <Share2 className="h-3.5 w-3.5" /> {c.trySim}
+                    <button onClick={simulateReferral} disabled={loading} className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground transition hover:opacity-90 disabled:opacity-50">
+                      <Share2 className="h-3.5 w-3.5" /> {loading ? 'Ekleniyor...' : c.trySim}
                     </button>
                     <span className="tnum inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-2 text-[12px] font-semibold text-sidebar-foreground/80 ring-1 ring-white/10">
                       <Gift className="h-3.5 w-3.5 text-primary" /> {bumps} {lang0(c)}

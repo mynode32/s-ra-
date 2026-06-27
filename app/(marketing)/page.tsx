@@ -320,6 +320,7 @@ function InlineDemo({ c }: { c: (typeof content)["en"] }) {
   const [error, setError] = useState<string | false>(false);
   const [copied, setCopied] = useState(false);
 
+  const basePos = 412; // Sabit bir sayı (UI'da gösteriliyor)
   const STORE_ID = "eb2b8b94-32d9-4865-80f4-43130486a685"; // Gerçek Test Mağazası Kimliği
 
   const board = useMemo(() => {

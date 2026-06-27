@@ -104,18 +104,13 @@ export async function POST(request: Request) {
         
         try {
           // İkas Kuponu Oluştur
-          const coupon = await generateIkasCoupon(
-            store.access_token, 
-            store.ikas_merchant_id, 
-            {
-              name: `Sıra Ödülü (${targetRef} Davet) - ${referrerEntry.email}`,
-              type: 'PERCENTAGE',
-              value: '20.00', // %20 İndirim
-              auto_generate_code: true
-            }
+          const couponCode = await generateIkasCoupon(
+            store_id, 
+            referrerEntry.email, 
+            20
           );
           
-          console.log("Oluşturulan İkas Kuponu:", coupon);
+          console.log("Oluşturulan İkas Kuponu:", couponCode);
           
           // Resend ile Mail Gönder
           const { Resend } = require('resend');
@@ -132,7 +127,7 @@ export async function POST(request: Request) {
                 <div style="background: #f4f4f5; padding: 20px; text-align: center; border-radius: 12px; margin: 20px 0;">
                   <p style="margin: 0; color: #52525b; font-size: 14px;">Mağazamızda geçerli %20 İndirim Kodun</p>
                   <p style="margin: 10px 0 0; font-size: 24px; font-weight: bold; color: #18181b; letter-spacing: 2px;">
-                    ${coupon.code}
+                    ${couponCode}
                   </p>
                 </div>
                 <p style="color: #71717a; font-size: 14px;">Hemen alışverişe başla ve indiriminin tadını çıkar!</p>
